@@ -1,4 +1,6 @@
 import 'dotenv/config';
+import path from 'node:path';
+import {fileURLToPath} from 'node:url';
 import express from 'express'; import cors from 'cors'; import jwt from 'jsonwebtoken'; import bcrypt from 'bcryptjs'; import {z} from 'zod'; import {GoogleGenerativeAI} from '@google/generative-ai'; import {db,id} from './store.js';
 const app=express(), secret=process.env.JWT_SECRET||'development-secret-change-me';
 app.use(cors({origin:[process.env.FRONTEND_URL,'http://localhost:5173'].filter(Boolean)})); app.use(express.json({limit:'1mb'}));
@@ -19,14 +21,7 @@ app.post('/api/cases/:id/evidence',auth,owned,(req,res,next)=>{try{const e=z.obj
 const prompt=c=>`You are a careful fact-checking research assistant. Never declare a claim true or false. Analyze this article and return ONLY JSON with summary, uncertainty, claims (array of {text,type,priority}), loadedLanguage (array), questions (array), evidenceGaps (array), checklist (array). Article: ${c.articleText}`;
 app.post('/api/cases/:id/analyze',auth,owned,async(req,res)=>{let a;try{if(!process.env.GEMINI_API_KEY)throw Error('GEMINI_API_KEY is not configured');const ai=new GoogleGenerativeAI(process.env.GEMINI_API_KEY);const out=await ai.getGenerativeModel({model:process.env.GEMINI_MODEL||'gemini-2.5-flash'}).generateContent(prompt(req.case));a=JSON.parse(out.response.text().replace(/```json|```/g,''))}catch(error){console.error('Gemini analysis failed:',error.message);a={summary:'Draft neutral overview: review the submitted article against independently sourced evidence before drawing conclusions.',uncertainty:'AI analysis is a research aid. Publication details, source provenance, dates, and quoted data require reviewer verification.',claims:[{text:req.case.headline,type:'reported assertion',priority:req.case.priority}],loadedLanguage:['Review for emotionally charged or absolute wording in the submitted text.'],questions:['Which primary source directly supports the central assertion?','Do independent sources report the same date, number, and scope?'],evidenceGaps:['No independently reviewed supporting evidence has been recorded yet.'],checklist:['Locate the original source or dataset','Verify dates, names, and numeric figures','Record supporting and contradicting sources','Reviewer approves any final conclusion']}}req.case.analysis=a;req.case.claims=a.claims;req.case.updatedAt=new Date().toISOString();res.json(req.case)});
 app.use((err,req,res,next)=>{if(err instanceof z.ZodError)return res.status(400).json({error:err.issues[0].message});console.error(err);res.status(500).json({error:'Something went wrong'})});
-app.get('/',(_,res)=>res.send('API is running successfully!'));
-const path = require('path');
-
-// 1. Tell your server where the UI files live
-app.use(express.static(path.join(__dirname, 'dist')));
-
-// 2. Tell your server to serve the UI index.html file for any page request
-app.get('*', (req, res) => {
-  res.sendFile(path.join(__dirname, 'dist', 'index.html'));
-});
+const __filename=fileURLToPath(import.meta.url),__dirname=path.dirname(__filename),frontendDist=path.resolve(__dirname,'../../frontend/dist');
+app.use(express.static(frontendDist));
+app.get('*',(_,res)=>res.sendFile(path.join(frontendDist,'index.html')));
 app.listen(process.env.PORT||5000,()=>console.log('Verity API running'));
