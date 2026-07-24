@@ -9,3 +9,5 @@ Full-stack React + Express application for organizing claims, evidence, reviewer
 3. Open `http://localhost:5173`.
 
 The API is at `http://localhost:5000`. Development data is held in memory; replace `backend/src/store.js` with a database adapter for production.
+
+# ai-news-summeriser
